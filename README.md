@@ -1,2 +1,2 @@
-# food-insecurity-and-obesity
-Our team conducted a project where we aimed to examine the relationship between food insecurity and obesity across counties by investigating contributing factors. 
+# The Paradoxical Relationship Between Food Insecurity and Obesity
+Our team examined the relationship between food insecurity and obesity across counties by investigating contributing factors.
