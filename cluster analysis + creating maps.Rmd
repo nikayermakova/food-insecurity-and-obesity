@@ -1,0 +1,193 @@
+---
+title: "cluster analysis + creating maps"
+date: "`r Sys.Date()`"
+output: openintro::lab_report
+---
+
+```{r load-packages, message=FALSE}
+library(readxl)
+library(dplyr)
+library(usmap)
+library(openxlsx)
+library(ggplot2)
+library(ggfortify)
+library(factoextra)
+library(plotly)
+library(stringr)
+```
+
+### loading in data
+
+```{r}
+# loading in data
+final_data <- read_excel("final_data.xlsx")
+
+# removing some unnecessary variables in data
+final_data <- final_data |> select(-geographic_area, -abbr)
+```
+
+
+### scaling our data to prepare it for clustering
+
+```{r }
+# getting numeric data separately
+numeric_vars <- sapply(final_data, is.numeric)
+numeric_data <- final_data[, numeric_vars]
+non_numeric_data <- final_data[, !numeric_vars]
+
+# standardizing numeric variables
+scaled_numeric_data <- scale(numeric_data)
+
+# converting scaled numeric data back to data frame
+scaled_numeric_df <- as.data.frame(scaled_numeric_data)
+names(scaled_numeric_df) <- names(numeric_data)
+
+# combining scaled numeric data with non-numeric data
+scaled_data <- cbind(non_numeric_data, scaled_numeric_df)
+```
+
+### running cluster analysis
+
+```{r }
+# Removing NA from original data
+anyNA(scaled_data)
+sum(is.na(scaled_data))
+scaled_data <- na.omit(scaled_data)
+
+# Getting only numeric data
+numeric_data <- select(scaled_data, -state, -county)
+
+# Finding the perfect amount of clusters
+elbow_plot <- fviz_nbclust(numeric_data, kmeans, method = "wss") +
+  labs(subtitle = "Elbow method")
+print(elbow_plot)
+
+# Applying kmeans clustering with 5 clusters
+set.seed(123)
+km.res <- kmeans(numeric_data, 5, nstart = 25)
+
+# Calculating cluster means for each variable
+cluster_means <- aggregate(numeric_data, by = list(cluster = km.res$cluster), mean)
+
+# Merging cluster assignments with county names
+cluster_assignments_df <- data.frame(county = scaled_data$county, cluster = km.res$cluster)
+
+# Combining cluster assignments with original data
+final_data_with_clusters <- cbind(scaled_data, cluster = km.res$cluster)
+```
+
+### creating static cluster map
+
+```{r, echo=FALSE}
+# Create the labels for each peer group
+pg_names <- tibble(
+  pg_number = as.character(seq(1, 5)),
+  pg_names = c("Very high obesity and food insecurity",
+               "Moderately high obesity and food insecurity",
+               "Very low obesity and food insecurity",
+               "Moderate obesity, low food insecurity",
+               "Moderate obesity and food insecurity")
+)
+
+# Assigning colors to peer groups
+pg_colors <- c("#FF0000", "#FFA500", "#D2691E", "#FFFF00", "#0000FF")
+
+# Convert cluster to character
+final_data_with_clusters$cluster <- as.character(final_data_with_clusters$cluster)
+
+# Assigning peer groups to their corresponding labels
+cluster_data <- left_join(final_data_with_clusters, pg_names, by = c("cluster" = "pg_number"))
+
+# Join data with geometries 
+us_counties <- us_map(regions = "counties")
+us_states <- us_map(regions = "state")
+data_joined_g_county <- left_join(us_counties, cluster_data, by = c("county" = "county", "full" = "state"))
+
+# Reorder levels of Peer Group variable based on desired order
+data_joined_g_county$pg_names <- factor(data_joined_g_county$pg_names, levels = c("Very high obesity and food insecurity",
+                                                                                  "Moderately high obesity and food insecurity",
+                                                                                  "Moderate obesity and food insecurity",
+                                                                                  "Moderate obesity, low food insecurity",
+                                                                                  "Very low obesity and food insecurity"))
+# renaming cluster names
+data_joined_g_county <- data_joined_g_county |>
+  rename(`Peer Group` = pg_names)
+
+# Create visualization
+m <- ggplot() +
+  geom_sf(data = data_joined_g_county, aes(fill = `Peer Group`), size = 0.2) +  
+  scale_fill_manual(values = pg_colors, 
+                    labels = c("Very high obesity and food insecurity",
+                               "Moderately high obesity and food insecurity",
+                               "Moderate obesity and food insecurity",
+                               "Moderate obesity, low food insecurity",
+                               "Very low obesity and food insecurity")) +
+  labs(title = "Distribution of Obesity and Food Insecurity in US Counties") +
+  geom_sf(data = us_states, color = "black", fill = fill_alpha("black", 0), size = 0.2) +  
+  theme_void()  # Remove background
+
+m
+```
+
+### creating interactive cluster map
+
+```{r, echo=FALSE, warning=FALSE}
+# Create the labels for each peer group
+pg_names <- tibble(
+  pg_number = as.character(seq(1, 5)),
+  pg_names = c("Very high obesity and food insecurity",
+               "Moderately high obesity and food insecurity",
+               "Very low obesity and food insecurity",
+               "Moderate obesity, low food insecurity",
+               "Moderate obesity and food insecurity")
+)
+
+# Assigning colors to peer groups
+pg_colors <- c("#FF0000", "#FFA500", "#D2691E", "#FFFF00", "#0000FF")
+
+# Convert cluster to character
+final_data_with_clusters$cluster <- as.character(final_data_with_clusters$cluster)
+
+# Assigning peer groups to their corresponding labels
+cluster_data <- left_join(final_data_with_clusters, pg_names, by = c("cluster" = "pg_number"))
+
+# Join data with geometries 
+us_counties <- us_map(regions = "counties")
+data_joined_g_county <- left_join(us_counties, cluster_data, by = c("county" = "county", "full" = "state"))
+
+# Reorder levels of Peer Group variable based on desired order
+data_joined_g_county$pg_names <- factor(data_joined_g_county$pg_names, levels = c("Very high obesity and food insecurity",
+                                                                                  "Moderately high obesity and food insecurity",
+                                                                                  "Moderate obesity and food insecurity",
+                                                                                  "Moderate obesity, low food insecurity",
+                                                                                  "Very low obesity and food insecurity"))
+# renaming cluster names
+data_joined_g_county <- data_joined_g_county |>
+  rename(`Peer Group` = pg_names)
+
+# Create visualization
+data_joined_g_county <- data_joined_g_county |>
+  mutate(tooltip_text = str_c(full  , "\n", county, "\n", `Peer Group`)) # Add more tooltip info here
+
+m <- ggplot() +
+  geom_sf(data = data_joined_g_county, aes(text = tooltip_text, fill = `Peer Group`, color = fips), size = 0.05) +
+  scale_fill_manual(values = pg_colors, 
+                    labels = c("Very high obesity and food insecurity",
+                               "Moderately high obesity and food insecurity",
+                               "Moderate obesity and food insecurity",
+                               "Moderate obesity, low food insecurity",
+                               "Very low obesity and food insecurity")) +
+  labs(title = "Distribution of Obesity and Food Insecurity in US Counties",
+    subtitle = "“Peer groups” are based on counties’ food insecurity and obesity levels, related risk factors, and background characteristics.") +
+  theme_void()
+
+m_int <- ggplotly(m, tooltip = "text") |>
+  style(
+    hoveron = "fills", 
+    line.color = toRGB("black"),
+    line.width = 0.3,
+    traces = seq.int(2, 3145)) |>
+  hide_legend()
+
+m_int
+```
