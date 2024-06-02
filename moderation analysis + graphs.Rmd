@@ -1,0 +1,126 @@
+---
+title: "simple moderation analysis"
+date: "2024-05-21"
+output: openintro::lab_report
+---
+
+```{r load-packages, message=FALSE}
+library(readxl)
+library(openxlsx)
+library(usmap)
+library(interactions)
+library(dplyr)
+```
+
+### loading in data
+
+```{r }
+# loading in data
+final_data <- read_excel("final_data.xlsx")
+```
+
+### variable 1: people of color
+
+```{r }
+# filter data to moderation interest
+dat <- final_data |> 
+  select(obesity_rate, food_insecurity_rate, people_color)
+
+# note:  this is percent of people of color in that county
+
+# Descriptive statistics
+summary(dat)
+
+# Correlations
+correlations <- cor(dat)
+print(correlations)
+
+# fot the moderated multiple regression model 
+model <- lm(obesity_rate ~ food_insecurity_rate * people_color, dat)
+summary(model)
+
+# visual
+interactions::interact_plot(model, pred = food_insecurity_rate, modx = people_color)
+```
+
+### variable 2: college less 
+
+```{r}
+# filter data to moderation interest
+dat <- final_data |> 
+  select(obesity_rate, food_insecurity_rate, college_less)
+
+# note:  this is percent of people of color in that county
+
+# Descriptive statistics
+summary(dat)
+
+# Correlations
+correlations <- cor(dat)
+print(correlations)
+
+# fot the moderated multiple regression model 
+model <- lm(obesity_rate ~ food_insecurity_rate * college_less, dat)
+summary(model)
+
+# visual
+interactions::interact_plot(model, pred = food_insecurity_rate, modx = college_less)
+```
+
+### variable 3: median income
+
+```{r }
+# filter data to moderation interest
+dat <- final_data |> 
+  select(obesity_rate, food_insecurity_rate, median_income)
+
+# note:  this is percent of people of color in that county
+
+# Descriptive statistics
+summary(dat)
+
+# Correlations
+correlations <- cor(dat)
+print(correlations)
+
+# fot the moderated multiple regression model 
+model <- lm(obesity_rate ~ food_insecurity_rate * median_income, dat)
+summary(model)
+
+# visual
+interactions::interact_plot(model, pred = food_insecurity_rate, modx = median_income)
+```
+
+### variable 4: rural population
+
+```{r}
+# filter data to moderation interest
+dat <- final_data |> 
+  select(obesity_rate, food_insecurity_rate, rural_population)
+
+# note:  this is percent of people of color in that county
+
+# Descriptive statistics
+summary(dat)
+
+# Correlations
+correlations <- cor(dat)
+print(correlations)
+
+# fot the moderated multiple regression model 
+model <- lm(obesity_rate ~ food_insecurity_rate * rural_population, dat)
+summary(model)
+
+# visual
+interactions::interact_plot(model, pred = food_insecurity_rate, modx = rural_population)
+```
+
+  
+  
+  
+  
+  
+  
+  
+  
+  
