@@ -1,0 +1,26 @@
+County,County Value,Error Margin,Z-Score
+Alaska,28%,&nbsp;,
+Aleutians East,31%,25-38%,NA
+Aleutians West,36%,30-43%,1.65
+Anchorage,27%,25-29%,-1.24
+Bethel,32%,28-36%,0.21
+Bristol Bay,34%,27-41%,0.99
+Denali,25%,19-31%,NA
+Dillingham,35%,30-41%,1.37
+Fairbanks North Star,29%,26-31%,-0.74
+Haines,27%,21-33%,-1.4
+Juneau,27%,24-30%,-1.24
+Kenai Peninsula,28%,26-31%,-0.92
+Ketchikan Gateway,29%,25-34%,-0.52
+Kodiak Island,29%,25-34%,-0.52
+Kusilvak,34%,29-41%,1.08
+Lake and Peninsula,32%,26-39%,0.46
+Matanuska-Susitna,29%,27-31%,-0.64
+Nome,33%,28-39%,0.74
+North Slope,35%,30-41%,1.37
+Northwest Arctic,33%,27-39%,0.49
+Sitka,27%,22-32%,-1.24
+Southeast Fairbanks,33%,28-38%,0.65
+Valdez-Cordova,30%,26-35%,-0.17
+Yakutat,32%,25-40%,NA
+Yukon-Koyukuk,27%,22-31%,-1.4
