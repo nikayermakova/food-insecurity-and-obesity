@@ -1,0 +1,104 @@
+---
+title: "correlation analysis + creating graphs"
+author: "Sophia Harris, Sam McFarland, Esal Shakil, Nika Yermakova"
+date: "`r Sys.Date()`"
+output: openintro::lab_report
+---
+
+```{r load-packages, message=FALSE}
+library(tidyverse)
+library(openintro)
+library(readr)
+library(stringr)
+library(dplyr)
+library(stringdist)
+library(usmap)
+library(openxlsx)
+library(plotly)
+library(ggplot2)
+library(psych)
+```
+
+### getting descriptive statistics 
+```{r}
+# loading in data
+final_data <- read_excel("final_data.xlsx")
+
+# descriptive stats
+describe(final_data)
+```
+
+### running correlation analysis for food insecurity and obesity
+```{r }
+# running correlation analysis
+cor.test(final_data$food_insecurity_rate, final_data$obesity_rate)
+```
+
+# creating us regions for correlation map
+```{r}
+# creating a mapping of states to regions
+state_region_mapping <- data.frame(
+  state = c(
+    "AL", "AK", "AZ", "AR", "CA", 
+    "CO", "CT", "DE", "FL", "GA",
+    "HI", "ID", "IL", "IN", "IA", 
+    "KS", "KY", "LA", "ME", "MD",
+    "MA", "MI", "MN", "MS", "MO", 
+    "MT", "NE", "NV", "NH", "NJ",
+    "NM", "NY", "NC", "ND", "OH", 
+    "OK", "OR", "PA", "RI", "SC",
+    "SD", "TN", "TX", "UT", "VT", 
+    "VA", "WA", "WV", "WI", "WY", "DC"
+  ),
+  region = c(
+    "South", "West", "West", "South", "West", 
+    "West", "Northeast", "South", "South", "South", 
+    "West", "West", "Midwest", "Midwest", "Midwest", 
+    "Midwest", "South", "South", "Northeast", "South", 
+    "Northeast", "Midwest", "Midwest", "South", "Midwest",
+    "West", "Midwest", "West", "Northeast", "Northeast", 
+    "West", "Northeast", "South", "Midwest", "Midwest", 
+    "South", "West", "Northeast", "Northeast", "South", 
+    "Midwest", "South", "South", "West", "Northeast", 
+    "South","West", "South", "Midwest", "West", "South"
+  )
+)
+
+# joining regions with final data
+final_data_region <- left_join(final_data, state_region_mapping, by = c("abbr" = "state"))
+```
+
+### creating static and interactive graphs
+``` {r }
+# creating static map
+corr_graph <- ggplot(data = final_data_region, aes(x = food_insecurity_rate, y = obesity_rate, text = paste(geographic_area))) +
+  geom_jitter(aes(colour = region), width = 1.5, height = 2, alpha = 0.7) +
+  geom_abline(intercept = coef(lm(obesity_rate ~ food_insecurity_rate, data = final_data_region))[1], 
+              slope = coef(lm(obesity_rate ~ food_insecurity_rate, data = final_data_region))[2], 
+              color = "#D55E00", size = 1) +
+  labs(
+    title = "Relationship Between \nFood Insecurity and Obesity",
+    x = "Food Insecurity Rate (%)",
+    y = "Obesity Rate (%)",
+    color='Region'
+  ) +
+  theme_classic() +  
+  theme(
+    plot.title = element_text(size = 16, face = "bold", hjust = 0.5),
+    axis.title = element_text(size = 14),
+    axis.text = element_text(size = 12)
+  )
+
+# making it interactive
+corr_plotly <- ggplotly(corr_graph, tooltip = "text") %>%
+  add_lines(
+    x = ~food_insecurity_rate, 
+    y = ~predict(lm(obesity_rate ~ food_insecurity_rate, data = final_data_region)), 
+    line = list(color = "#D55E00", width = 1),
+    name = "Regression"
+  )
+
+# disaplaying the graphs
+corr_graph
+corr_plotly
+```
