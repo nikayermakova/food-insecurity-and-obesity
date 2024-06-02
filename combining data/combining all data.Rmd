@@ -1,0 +1,205 @@
+---
+title: "Combining all data"
+author: "Sophia Harris, Sam McFarland, Esal Shakil, Nika Yermakova"
+date: "`r Sys.Date()`"
+output: openintro::lab_report
+---
+
+```{r load-packages, message=FALSE}
+library(dplyr)
+library(tidyr)
+library(readr)
+library(stringr)
+library(usmap)
+library(writexl)
+library(sf)
+library(readxl)
+```
+
+### combining all the obesity files together
+
+Each state has it's own file with its counties.
+Note: We modified the files for alaska and lousiana to match the column names
+with the other files since they don't have "counties".
+
+```{r, message=FALSE, results = FALSE, warning=FALSE}
+# getting the list of file names
+file_list <- list.files(pattern = "\\.csv$")
+
+# extracting state names from file names and capitalizing only the first letter
+state_names <- gsub("^(.*)-\\d{4}-.*$", "\\1", file_list)
+state_names <- str_to_title(state_names)
+
+# replacing dashes with spaces for states with two-word names
+state_names <- gsub("-", " ", state_names)
+
+# reading each CSV file into a list of data frames
+state_data <- lapply(file_list, read_csv)
+
+# creating a column for state names in each data frame
+state_data_with_names <- Map(function(df, state) {
+  df$State <- state
+  df
+}, state_data, state_names)
+
+# combining all data frames into one
+combined_df <- do.call(rbind, state_data_with_names)
+
+# re-ording the position of the columns
+combined_obesity <- combined_df |>
+  select(State, County, `County Value`, `Error Margin`, `Z-Score`) |>
+  rename(`Obesity Rate` = `County Value`)
+
+# making another column where state and county are combined
+combined_obesity$Combined <- paste(combined_obesity$County, combined_obesity$State, sep = "_")
+```
+
+### combining food insecurity data with county data to get state info
+
+```{r, message=FALSE, results = FALSE, warning=FALSE}
+# loading in food insecurity data from the urban institute
+food_insecurity <- read_excel("chart_data.xlsx")
+
+# loading in county data from us_map()
+county_info <- us_map(regions = "county")
+
+# combining food insecurity and county data
+county_info <- county_info |>
+  mutate("fips" = as.numeric(fips))
+
+food_insecurity <- food_insecurity |>
+  mutate("id" = as.numeric(id))
+
+food_insecurity <- left_join(food_insecurity, county_info,
+c("id"="fips"))
+```
+
+### loading in + tidying population data
+
+We don't actually need this for our final data. However, we initially included
+this because we thought that we would be doing something with state data and 
+needed the population information to configure weighted averages. 
+
+While this data is irrelevant, it was part of the process in getting the data
+combined so we are keeping this piece. 
+
+
+```{r, message=FALSE, results = FALSE, warning=FALSE}
+# loading in population data
+population_info <- read_excel("co-est2019-annres.xlsx")
+
+# renaming the columns
+population_info <- population_info[-(1:3), ]
+    
+# Renaming the first column to "select characteristics"
+names(population_info)[1] <- "Geographic Area"
+names(population_info)[2] <- "Census"
+names(population_info)[3] <- "Estimates Base"
+names(population_info)[4] <- "2010"
+names(population_info)[5] <- "2011"
+names(population_info)[6] <- "2012"
+names(population_info)[7] <- "2013"
+names(population_info)[8] <- "2014"
+names(population_info)[9] <- "2015"
+names(population_info)[10] <- "2016"
+names(population_info)[11] <- "2017"
+names(population_info)[12] <- "2018"
+names(population_info)[13] <- "2019"
+
+# Converting chr data into num
+population_info <- population_info |>
+  mutate(across(c("Census", "Estimates Base", "2010", "2011", "2012", "2013", "2014", "2015", "2016", "2017", "2018", "2019"), as.numeric))
+
+# Separate state from county in the name and combine with underscore
+population_info <- population_info |>
+  separate(col = "Geographic Area", 
+           into = c("County", "State_temp"),
+           sep = ",",
+           remove = FALSE) |> 
+  mutate(County = gsub("^\\.", "", County),  # Remove leading period
+         State_temp = gsub("^\\s+|\\s+$", "", State_temp),  # Remove leading/trailing whitespace from state
+         State = gsub(" ", "_", State_temp)) |>  # Replace spaces in state name with underscores
+  select(-State_temp)  # Remove temporary state column
+
+# Combine county and state names with an underscore
+population_info <- population_info |>
+  mutate(Unique_ID = paste0(County, "_", State))
+
+# renaming the 2016 data to be our population of interest
+population_info <- population_info |>
+  rename(population = `2016`)
+```
+
+### joining food insecurity with population data
+
+```{r, message=FALSE, results = FALSE, warning=FALSE}
+# creating unique id for food insecurity data 
+food_insecurity$Unique_ID <- paste(food_insecurity$name, food_insecurity$full, sep = "_")
+
+# cleaning up labels so they match up better for merging
+food_insecurity <- food_insecurity |>
+  mutate(Unique_ID = gsub("County_NA", "County_Connecticut", Unique_ID)) |>
+  mutate(Unique_ID = gsub("Census Area_NA", "Census Area_Alaska", Unique_ID))
+
+population_info <- population_info|>
+  mutate(Unique_ID = gsub(" city_", " City_", Unique_ID)) |>
+  mutate(Unique_ID = gsub("District_of_Columbia", "District of Columbia", Unique_ID)) |>
+  mutate(Unique_ID = gsub("New_Hampshire", "New Hampshire", Unique_ID))  |>
+  mutate(Unique_ID = gsub("New_Jersey", "New Jersey", Unique_ID))  |>
+  mutate(Unique_ID = gsub("New_Mexico", "New Mexico", Unique_ID))  |>
+  mutate(Unique_ID = gsub("New_York", "New York", Unique_ID)) |>
+  mutate(Unique_ID = gsub("_Carolina", " Carolina", Unique_ID)) |>
+  mutate(Unique_ID = gsub("_Dakota", " Dakota", Unique_ID)) |>
+  mutate(Unique_ID = gsub("Rhode_Island", "Rhode Island", Unique_ID)) |>
+  mutate(Unique_ID = gsub("West_Virginia", "West Virginia", Unique_ID))
+
+# merging data
+food_insecurity <- left_join(food_insecurity, population_info, by = "Unique_ID")
+```
+
+### combining food insecurity with obesity data
+
+```{r, message=FALSE, results = FALSE, warning=FALSE}
+# mutating some of the names
+food_insecurity <- food_insecurity |>
+  mutate(Unique_ID = gsub(" County", "", Unique_ID)) |>
+  mutate(Unique_ID = gsub(" Borough", "", Unique_ID)) |>
+  mutate(Unique_ID = gsub(" Census Area", "", Unique_ID)) |>
+  mutate(Unique_ID = gsub(" Parish", "", Unique_ID)) |>
+  mutate(Unique_ID = gsub(" Municipality", "", Unique_ID)) |>
+  mutate(Unique_ID = gsub(" City and", "", Unique_ID))
+
+combined_obesity <- combined_obesity |>
+  mutate(Combined = gsub("^_", "_", Combined))
+
+# left joining the data sets based on the formatted columns
+final_data <- left_join(combined_obesity, food_insecurity, by = c("Combined" = "Unique_ID")) |>
+  filter(!is.na(`Geographic Area`)) |> 
+  mutate(`Obesity Rate` = as.numeric(gsub("%", "", `Obesity Rate`))) |>
+  rename(`Food Insecurity` = "food_insecure_all")
+  
+
+# tidying final data
+final_data <- final_data |>
+  select(State.x, abbr, name, `Geographic Area`, `Obesity Rate`, `Food Insecurity`, food_insecure_children, low_birthweight, diabetes, disability,
+         no_insurance, housing_cost_burdened, severely_housing_cost_burdened, wage_fair_market_rent, median_income, below_poverty,
+         unemployment, credit_score, debt, children, seniors, people_color, college_less, rural_population, geom) |>
+  rename(state = State.x,
+         county = name,
+         obesity_rate = `Obesity Rate`,
+         food_insecurity_rate = `Food Insecurity`) |>
+  mutate(across(c(food_insecure_children, low_birthweight, diabetes, disability, no_insurance, housing_cost_burdened,
+                  severely_housing_cost_burdened, below_poverty, unemployment, debt, children, seniors,
+                  people_color, college_less, rural_population, credit_score, wage_fair_market_rent), as.numeric))|>
+  mutate(`Geographic Area` = sub("^\\.", "", `Geographic Area`)) |>
+  rename(geographic_area = `Geographic Area`) |>
+  select(-geom)
+```
+
+### turning data frame into excel file
+
+```{r, message=FALSE, results = FALSE, warning=FALSE}
+# exporting the data to excel
+write_xlsx(final_data, "final_data.xlsx")
+```
+
