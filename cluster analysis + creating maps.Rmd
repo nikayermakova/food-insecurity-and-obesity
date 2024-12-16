@@ -13,7 +13,8 @@ library(ggplot2)
 library(ggfortify)
 library(factoextra)
 library(plotly)
-library(stringr)
+library(string)
+library(scales)
 ```
 
 ### loading in data
@@ -123,7 +124,7 @@ m <- ggplot() +
                                "Moderate obesity, low food insecurity",
                                "Very low obesity and food insecurity")) +
   labs(title = "Distribution of Obesity and Food Insecurity in US Counties") +
-  geom_sf(data = us_states, color = "black", fill = fill_alpha("black", 0), size = 0.2) +  
+  geom_sf(data = us_states, color = "black", fill = alpha("black", 0), size = 0.2) +  
   theme_void()  # Remove background
 
 m
